@@ -175,7 +175,11 @@ int wmain()
 		//dynamic_safe_food move logic variables
 		auto dynamic_food_move_start = system_clock::now();
 		XY temp_pos{};
+#ifdef NDEBUG
+		bool dynamic_alive{ false };
+#else
 		bool dynamic_alive{ true };
+#endif
 		short d_sm_food_dir{};
 		vector<XY> free_direction{};
 		//dynamic_safe_food move logic variables
