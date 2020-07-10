@@ -6,30 +6,16 @@
 using namespace std;
 using namespace std::chrono;
 
-constexpr int screen_width{ 110 };
-constexpr int screen_height{ 70 };
-constexpr int font_size{ 14 };
+using XY = Screen::Coord;
 
-constexpr wchar_t snake_head_char{ L'@' };
-constexpr wchar_t snake_body_char{ L'\u004f' };
-constexpr wchar_t dead_snake_head_char{ L'%' };
-constexpr wchar_t dead_snake_body_char{ L'+' };
-
-constexpr wchar_t static_food_char{ L'0' };
-constexpr wchar_t dynamic_food_safe_char{ L'8' };
-constexpr wchar_t dynamic_food_unsafe_char{ L'X' };
-
-constexpr wchar_t vertival_border{ L'\u2551' };
-constexpr wchar_t horizontal_border_thin{ L'\u2500' };
-constexpr wchar_t horizontal_border_wide{ L'\u2550' };
-
-constexpr bool GAME_END_LOOSE{ false };
-constexpr bool GAME_END_WIN{ true };
-
-constexpr auto dynamic_food_safe_move_delay = 200ms;
-constexpr auto dynamic_food_state_period = 1s;
-
-
+enum direction
+{
+	NO_INPUT = 0,
+	UP,
+	LEFT,
+	DOWN,
+	RIGHT,
+};
 enum COLOR
 {
 	FG_BLACK = 0x0000,
@@ -65,45 +51,60 @@ enum COLOR
 	BG_YELLOW = 0x00E0,
 	BG_WHITE = 0x00F0,
 };
-constexpr auto dead_snake_body_color{ FG_DARK_GREY };
-constexpr auto dead_snake_head_color{ FG_GREY };
+
+
+constexpr int screen_width{ 110 };
+constexpr int screen_height{ 70 };
+constexpr int font_size{ 14 };
+
+constexpr int initial_snake_len{ 5 };
+
+
+constexpr auto dynamic_food_safe_move_delay{ 200ms };
+constexpr auto dynamic_food_state_period{ 1s };
+
+
+constexpr bool GAME_END_LOOSE{ false };
+constexpr bool GAME_END_WIN{ true };
+
+
+constexpr wchar_t snake_head_char{ L'@' };
+constexpr wchar_t snake_body_char{ L'\u004f' };
 constexpr auto snake_body_color{ FG_DARK_YELLOW };
 constexpr auto snake_head_color{ FG_GREEN };
 
-constexpr auto static_food_color{ FG_YELLOW };
+constexpr wchar_t dead_snake_head_char{ L'%' };
+constexpr wchar_t dead_snake_body_char{ L'+' };
+constexpr auto dead_snake_body_color{ FG_DARK_GREY };
+constexpr auto dead_snake_head_color{ FG_GREY };
+
+constexpr wchar_t static_food_char{ L'0' };
+constexpr auto static_food_color{ FG_WHITE };
+
+constexpr wchar_t dynamic_food_safe_char{ L'8' };
+constexpr wchar_t dynamic_food_unsafe_char{ L'X' };
 constexpr auto dynamic_food_safe_color{ FG_GREEN };
 constexpr auto dynamic_food_unsafe_color{ FG_RED };
+
+
+constexpr wchar_t vertival_border{ L'\u2551' };
+constexpr wchar_t horizontal_border_thin{ L'\u2500' };
+constexpr wchar_t horizontal_border_wide{ L'\u2550' };
+constexpr auto border_color{ FG_WHITE };
 
 constexpr auto status_bar_color_win{ FG_GREEN };
 constexpr auto status_bar_color_ingame{ FG_YELLOW };
 constexpr auto status_bar_color_fail{ FG_RED };
+constexpr auto status_bar_begin = screen_width / 5;
 
-constexpr auto border_color{ FG_WHITE };
 
+void arrowKeysInput(int& max_score, milliseconds& snake_speed);
+direction input();
 
-enum direction
-{
-	NO_INPUT = 0,
-	UP,
-	LEFT,
-	DOWN,
-	RIGHT,
-};
-namespace  PreviousInput
-{
-	bool up_key_prev{ false }, down_key_prev{ false },
-		right_key_prev{ false }, left_key_prev{ false };
-
-	direction dir_prev{};
-}
-
-void arrow_keys_input(int& max_score, milliseconds& snake_speed);
 void initScreen(Screen& gscreen);
-direction input(int& max_score, milliseconds& snake_speed);
+void putStatusBar(Screen& gscreen, const wstring& status_bar, COLOR color);
+
 void generateFood(Screen& gscreen, Food* food_obj);
-void put_status_bar(Screen& gscreen, const wstring& status_bar, COLOR color);
-
-
 
 int wmain()
 {
@@ -111,6 +112,7 @@ int wmain()
 	_setmode(_fileno(stdin), _O_U16TEXT);
 	_setmode(_fileno(stderr), _O_U16TEXT);
 	_wsetlocale(LC_ALL, NULL);
+
 
 #ifdef NDEBUG
 	srand(time(NULL));
@@ -128,8 +130,8 @@ int wmain()
 		initScreen(gscreen);
 
 		//initial snake length
-		list<Screen::Coord> snake;
-		for (int i = 0; i < 5; i++)
+		list<XY> snake;
+		for (int i = 0; i < initial_snake_len; i++)
 			snake.push_back({ screen_width / 2 + i,screen_height / 2 });
 		//initial snake length
 
@@ -150,38 +152,33 @@ int wmain()
 			dynamic_food_unsafe_char
 		);
 
-
-		//bool w_key{}, a_key{}, s_key{}, d_key{};
-		direction dir{ LEFT };
-
 		int game_score{};
 		int max_score{ 1000 };
-
 		auto snake_speed{ 100ms };
+		bool snake_dead{};
 
 		wstring status_bar = L"Score : " +
 			to_wstring(game_score) + L'/' +
 			to_wstring(max_score) +
 			L"   Speed : move/" +
 			to_wstring(snake_speed.count()) +
-			L"ms   Use arrows to change max_score/speed";
-		put_status_bar(gscreen, status_bar, status_bar_color_ingame);
-
-		bool snake_dead{};
+			L" ms";
+		putStatusBar(gscreen, status_bar, status_bar_color_ingame);
 
 		wchar_t head_char{};
 
-		bool a{ false };
-
+		direction dir_prev{ LEFT };
 		direction temp_dir{};
-
-		auto dynamic_food_move_start = system_clock::now();
+		direction dir{ LEFT };
 		auto dynamic_food_state_start = system_clock::now();
 
-		Screen::Coord temp_pos{};
+		//dynamic_safe_food move logic variables
+		auto dynamic_food_move_start = system_clock::now();
+		XY temp_pos{};
 		bool dynamic_alive{ true };
 		short d_sm_food_dir{};
-		vector<Screen::Coord> free_direction;
+		vector<XY> free_direction{};
+		//dynamic_safe_food move logic variables
 
 		try
 		{
@@ -190,13 +187,14 @@ int wmain()
 				auto start_time = system_clock::now();
 				while ((system_clock::now() - start_time) < snake_speed)
 				{
-					temp_dir = input(max_score, snake_speed);
+					temp_dir = input();
 
 					if (temp_dir != NO_INPUT &&
-						PreviousInput::dir_prev != temp_dir + 2 &&
-						PreviousInput::dir_prev != temp_dir - 2)dir = temp_dir;
+						dir_prev != temp_dir + 2 &&
+						dir_prev != temp_dir - 2)dir = temp_dir;
 				}
-				PreviousInput::dir_prev = dir;
+				dir_prev = dir;
+
 				switch (dir)
 				{
 				case UP:
@@ -237,7 +235,7 @@ int wmain()
 					&& dynamic_alive)
 				{
 					d_sm_food_ptr->set_state(!d_sm_food_ptr->get_state());
-					d_sm_food_ptr->move(d_sm_food_ptr->get_pos());
+					d_sm_food_ptr->put_to_screen(d_sm_food_ptr->get_pos());
 
 					dynamic_food_state_start = system_clock::now();
 				}
@@ -303,7 +301,7 @@ int wmain()
 							gscreen.set(d_sm_food_ptr->get_pos(), L' ');
 
 							d_sm_food_dir = rand() % free_direction.size();
-							d_sm_food_ptr->move({ free_direction.at(dynamic_alive) });
+							d_sm_food_ptr->move({ free_direction.at(d_sm_food_dir) });
 
 							dynamic_food_move_start = system_clock::now();
 						}
@@ -314,14 +312,14 @@ int wmain()
 
 
 				//status bar
-				arrow_keys_input(max_score, snake_speed);
+				arrowKeysInput(max_score, snake_speed);
 				status_bar = L"Score : " +
 					to_wstring(game_score) + L'/' +
 					to_wstring(max_score) +
 					L"   Speed : move/" +
 					to_wstring(snake_speed.count()) +
-					L"ms   Use arrows to change max_score/speed";
-				put_status_bar(gscreen, status_bar, status_bar_color_ingame);
+					L" ms";
+				putStatusBar(gscreen, status_bar, status_bar_color_ingame);
 				//status bar
 
 				//put snake body and head to screen buffer
@@ -352,13 +350,13 @@ int wmain()
 			if (game_state)
 			{
 				status_bar = L"                  Congratulation,you WIN !!!";
-				put_status_bar(gscreen, status_bar, status_bar_color_win);
+				putStatusBar(gscreen, status_bar, status_bar_color_win);
 				gscreen.fastDraw();
 			}
 			else
 			{
 				status_bar = L"        GameOver !!!    Press space to continue ";
-				put_status_bar(gscreen, status_bar, status_bar_color_fail);
+				putStatusBar(gscreen, status_bar, status_bar_color_fail);
 				gscreen.fastDraw();
 			}
 		}
@@ -369,15 +367,15 @@ int wmain()
 	return 0;
 }
 
-void put_status_bar(Screen& gscreen, const wstring& status_bar, COLOR color)
+void putStatusBar(Screen& gscreen, const wstring& status_bar, COLOR color)
 {
-
-	for (int x = screen_width / 5; x < screen_width - 1; x++)
+	//cleaning status bar
+	for (int x = status_bar_begin; x < screen_width - 1; x++)
 		gscreen.set({ x,1 }, L' ');
+	//cleaning status bar
 
 	auto it = status_bar.begin();
-
-	for (int x = screen_width / 5;
+	for (int x = status_bar_begin;
 		x < screen_width - 1 && it != status_bar.end();
 		x++, it++)
 	{
@@ -388,61 +386,44 @@ void put_status_bar(Screen& gscreen, const wstring& status_bar, COLOR color)
 void generateFood(Screen& gscreen, Food* food_obj)
 {
 
-	vector<Screen::Coord> free_cells;
+	vector<XY> free_cells;
 	for (int y = 3; y < screen_height - 1; y++)
 		for (int x = 1; x < screen_width - 1; x++)
 			if (gscreen.at({ x,y }) == L' ')free_cells.push_back({ x,y });
 
-	if (free_cells.size() == 0)throw GAME_END_WIN;
-
-	int food_cell = rand() % free_cells.size();
+	int food_cell{};
+	try
+	{
+		food_cell = rand() % free_cells.size();
+	}
+	catch (const runtime_error&)
+	{
+		throw GAME_END_WIN;
+	}
 
 	food_obj->put_to_screen(free_cells.at(food_cell));
 }
-void arrow_keys_input(int& max_score, milliseconds& snake_speed)
+void arrowKeysInput(int& max_score, milliseconds& snake_speed)
 {
-	bool  enter_key{}, up_key{}, down_key{}, right_key{}, left_key{};
+	if (GetAsyncKeyState(VK_BACK))exit(EXIT_SUCCESS);
 
-	enter_key = GetAsyncKeyState(VK_RETURN);
-	if (enter_key)exit(EXIT_SUCCESS);
-
-	up_key = GetAsyncKeyState(VK_UP);
-	if (up_key && !PreviousInput::up_key_prev)snake_speed += 10ms;
-	PreviousInput::up_key_prev = up_key;
-
-	down_key = GetAsyncKeyState(VK_DOWN);
-	if (down_key && !PreviousInput::down_key_prev)
+	if (0x8000 && GetAsyncKeyState(VK_UP) != 0)snake_speed += 10ms;
+	if (0x8000 && GetAsyncKeyState(VK_DOWN) != 0)
 	{
 		snake_speed -= 10ms;
 		if (snake_speed <= 0ms)snake_speed = 10ms;
 	}
-	PreviousInput::down_key_prev = down_key;
-
-	right_key = GetAsyncKeyState(VK_RIGHT);
-	if (right_key && !PreviousInput::right_key_prev)max_score += 100;
-	PreviousInput::right_key_prev = right_key;
-
-	left_key = GetAsyncKeyState(VK_LEFT);
-	if (left_key && !PreviousInput::left_key_prev)max_score -= 100;
-	PreviousInput::left_key_prev = left_key;
+	if (0x8000 && GetAsyncKeyState(VK_LEFT) != 0)max_score -= 100;
+	if (0x8000 && GetAsyncKeyState(VK_RIGHT) != 0)max_score += 100;
 }
-direction input(int& max_score, milliseconds& snake_speed)
+direction input()
 {
-	bool w_key{}, a_key{}, s_key{}, d_key{};
+	if (GetAsyncKeyState(0x57))return UP;
+	if (GetAsyncKeyState(0x41))return LEFT;
+	if (GetAsyncKeyState(0x53))return DOWN;
+	if (GetAsyncKeyState(0x44))return RIGHT;
 
-	direction dir{};
-
-	w_key = GetAsyncKeyState(0x57);
-	a_key = GetAsyncKeyState(0x41);
-	s_key = GetAsyncKeyState(0x53);
-	d_key = GetAsyncKeyState(0x44);
-
-	if (w_key)dir = UP;
-	else if (a_key)dir = LEFT;
-	else if (s_key)dir = DOWN;
-	else if (d_key)dir = RIGHT;
-
-	return dir;
+	return NO_INPUT;
 }
 void initScreen(Screen& gscreen)
 {

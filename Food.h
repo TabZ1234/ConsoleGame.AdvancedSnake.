@@ -46,7 +46,11 @@ class DynamicSmallFood : public StaticSmallFood
 	wchar_t unsafe_char;
 
 	wchar_t active_char;
-	Screen::Coord pos{ 6,6 };
+#ifndef NDEBUG
+	Screen::Coord pos{7,7};
+#else
+	Screen::Coord pos;
+#endif
 public:
 	DynamicSmallFood(Screen& gscrn,
 		const wchar_t f_ch,
