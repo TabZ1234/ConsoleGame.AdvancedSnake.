@@ -12,7 +12,7 @@ class Screen
 	wchar_t* buffer;
 
 	CONSOLE_FONT_INFOEX font;
-	CONSOLE_SCREEN_BUFFER_INFO screen_buffer_info;
+	//CONSOLE_SCREEN_BUFFER_INFO screen_buffer_info;
 	HANDLE console_handle;
 	HWND  console_HWND;
 
@@ -31,14 +31,22 @@ public:
 		int x;
 		int y;
 
-		/*friend bool operator==(Coord c1, Coord c2)
+		friend bool operator==(const Coord& c1, const Coord& c2)
 		{
 			return (c1.x == c2.x && c1.y == c2.y);
 		}
-		friend bool operator<(Coord c1, Coord c2)
+		friend bool operator!=(const Coord& c1, const Coord& c2)
 		{
-			return (c1.x < c2.x && c1.y < c2.y);
-		}*/
+			return !(c1 == c2);
+		}
+		friend bool operator<(const Coord& c1, const Coord& c2)
+		{
+			return (c1.x < c2.x&& c1.y < c2.y);
+		}
+		friend bool operator>(const Coord& c1, const Coord& c2)
+		{
+			return (c1.x > c2.x && c1.y > c2.y);
+		}
 	};
 
 	HANDLE get_console_handle();

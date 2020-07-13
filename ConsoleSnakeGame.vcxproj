@@ -149,6 +149,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Food.h" />
+    <ClInclude Include="constants.h" />
     <ClInclude Include="Screen.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>

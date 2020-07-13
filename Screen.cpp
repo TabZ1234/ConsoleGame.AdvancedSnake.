@@ -42,6 +42,11 @@ Screen::Screen(int width, int height, DWORD fsize)
 	SetConsoleActiveScreenBuffer(console_handle);
 
 	SetWindowPos(console_HWND, HWND_TOP, 0, 0,
+		10,
+		10,
+		NULL);
+
+	SetWindowPos(console_HWND, HWND_TOP, 0, 0,
 		font.dwFontSize.X* (screen_width + 2),
 		font.dwFontSize.Y* (screen_height + 3),
 		NULL);
