@@ -1,8 +1,10 @@
 #include "stdafx.h"
-#include "Screen.h"
+#include "Screen.hpp"
 
 Screen::Screen(int width, int height, DWORD fsize)
-	:screen_width{ width }, screen_height{ height }, buffer_size{ width * height }
+	:screen_width{ width },
+	screen_height{ height },
+	buffer_size{ width * height }
 {
 	assert(fsize > 14 || fsize < 30);
 
@@ -26,12 +28,12 @@ Screen::Screen(int width, int height, DWORD fsize)
 	font.cbSize = sizeof(CONSOLE_FONT_INFOEX);
 	font.nFont = 0;
 	font.dwFontSize.X = 12;
-
 	font.dwFontSize.Y = static_cast<SHORT>(fsize);
 	font.FontFamily = FF_DONTCARE;
 	font.FontWeight = FW_NORMAL;
 	wcscpy_s(font.FaceName, L"Lucida Console");
 	SetCurrentConsoleFontEx(console_handle, NULL, &font);
+
 
 	SetConsoleMode(console_handle,
 		ENABLE_PROCESSED_INPUT |
@@ -41,9 +43,9 @@ Screen::Screen(int width, int height, DWORD fsize)
 	);
 	SetConsoleActiveScreenBuffer(console_handle);
 
-	SetWindowPos(console_HWND, HWND_TOP, 0, 0,
-		10,
-		10,
+	SetWindowPos(console_HWND, HWND_BOTTOM, 0, 0,
+		100,
+		100,
 		NULL);
 
 	SetWindowPos(console_HWND, HWND_TOP, 0, 0,
@@ -60,32 +62,32 @@ HANDLE Screen::get_console_handle()
 {
 	return console_handle;
 }
-wchar_t Screen::at(const Coord& pos)
+wchar_t Screen::at(const XY& pos)
 {
 	assert((screen_width * pos.y + pos.x) < buffer_size
 		&& (screen_width * pos.y + pos.x) >= 0);
 
 	return buffer[screen_width * pos.y + pos.x];
 }
-void Screen::set(const Coord& pos, wchar_t symbol)
+void Screen::set(const XY& pos, wchar_t symbol)
 {
 	assert((screen_width * pos.y + pos.x) < buffer_size
 		&& (screen_width * pos.y + pos.x) >= 0);
 
 	buffer[screen_width * pos.y + pos.x] = symbol;
 }
-void Screen::set_color(const Coord& pos, short color)
+void Screen::set_color(const XY& pos,const WORD color)
 {
 	DWORD bwritten{};
-	FillConsoleOutputAttribute(
+	WriteConsoleOutputAttribute(
 		console_handle,
-		color,
+		&color,
 		1,
 		{ static_cast<SHORT>(pos.x),static_cast<SHORT>(pos.y) },
 		&bwritten
 	);
 }
-void Screen::set_title(wstring title)
+void Screen::set_title(const wstring& title)
 {
 	SetConsoleTitle(title.c_str());
 }
@@ -98,17 +100,12 @@ void Screen::fastDraw()
 	//#ifndef NDEBUG
 	if (SHOW_FPS_FLAG)
 	{
-
-		auto now_sec = time_point_cast<seconds>(system_clock::now());
-		auto prev_sec = time_point_cast<seconds>(prev_time);
-		auto diff = now_sec - prev_sec;
-
-		if (diff > 1s)
+		if (timer.elapsed() >= 1000.0)
 		{
 			wstring title = L"TabZ1234 Console Snake  | FPS :" + std::to_wstring(FPS);
 			SetConsoleTitle(title.c_str());
 			FPS = 0;
-			prev_time = system_clock::now();
+			timer.reset();
 		}
 		else FPS++;
 	};
